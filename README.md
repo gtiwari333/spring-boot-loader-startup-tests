@@ -53,7 +53,8 @@ RUNS=20 JFR_RUNS=5 JVM_OPTS="-Xms256m -Xmx256m" \
    `ApplicationReadyEvent`.
 3. **jfr** – `JFR_RUNS` startups per variant with `jdk.ObjectAllocationSample#throttle=off`, exiting
    at `ApplicationReadyEvent`; `alloc-bench/JfrAnalyze.java` then sums sample weights for: everything, stacks containing `org.springframework.boot.loader.*`, and stacks containing
-   `ZipInflaterInputStream.<init>`; plus GC count/pause.
+   `ZipInflaterInputStream.<init>`; plus the young GC count (GC pause times are also written to
+   `jfr-summary.tsv`).
 
 ## Results (2026-11-09, Corretto 25.0.2, macOS arm64, `-Xms256m -Xmx256m`)
 
@@ -83,7 +84,6 @@ compressed <= 64 KiB: 8 KiB -> up to 64 KiB).
 | stacks in `org.springframework.boot.loader` | 183.0 MB | 167.6 MB | -8% |
 | total sampled | 244.6 MB | 229.8 MB | -6% |
 | young GCs | 7 | 7 | same |
-| GC pause (sum) | 30.8 ms | 27.0 ms | noisy |
 
 **startup (10 runs, no JFR)** – median 1618 ms (rc2) vs 1637 ms (pr): no measurable difference.
 
@@ -110,6 +110,5 @@ compressed <= 64 KiB: 8 KiB -> up to 64 KiB).
 | stacks in `org.springframework.boot.loader` | 302.3 MB | 274.9 MB | -9% |
 | total sampled | 386.8 MB | 360.2 MB | -7% |
 | young GCs | 11 | 11 | same |
-| GC pause (sum) | 37.8 ms | 45.2 ms | noisy |
 
 **startup (10 runs, no JFR)** – median 2621 ms (rc2) vs 2613 ms (pr): no measurable difference.
