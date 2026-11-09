@@ -61,7 +61,46 @@ RUNS=20 JFR_RUNS=5 JVM_OPTS="-Xms256m -Xmx256m" \
 `rc2` = spring-boot-loader 4.2.0-RC2, `pr` = loader built from `startup-experiments` at
 `68a41206a95`. JFR runs stop at `ApplicationReadyEvent`, so they measure startup only.
 
-### Small app (`pom.xml`, `./run-all.sh <clone>`)
+### In short
+
+With the PR, the loader allocates about 23–24% less memory while reading classes at startup than
+4.2.0-RC2. Startup time and GC count don't change.
+
+- **Inflater buffers:** the buffers the PR resizes (`ZipInflaterInputStream.<init>`) allocate
+  57–60% less during startup (25.7 → 10.4 MB small app, 41.0 → 17.5 MB larger app).
+- **Loader and total:** all allocation in `org.springframework.boot.loader` is 8–9% lower, and
+  total startup allocation is 6–7% lower.
+- **Scaling:** the saving in MB grows with the number of classes loaded (about 15 MB at ~9,700
+  classes, about 23 MB at ~15,200), while the percentage stays about the same.
+- **Startup and GC:** median startup time is unchanged (1618 vs 1637 ms small, 2621 vs 2613 ms
+  larger), and so is the number of young GCs (7 and 11).
+- **Trade-off:** only 9 of 16,052 class entries (small app) and 65 of 36,359 (larger app) now get
+  a larger buffer, which matches what the JDK's own `ZipFile` does.
+
+The gain is less short-lived memory churn during class loading. It could start to save a GC with
+smaller heaps or apps that load more classes, but it isn't a startup-time improvement at a 256 MB
+heap.
+
+### Summary: small vs larger app
+
+| | Small app (rc2 → pr) | change | Larger app (rc2 → pr) | change |
+|---|---|---|---|---|
+| nested jars / class entries | 55 / 16,052 | | 116 / 36,359 | |
+| classes loaded at startup | ~9,700 | | ~15,190 | |
+| **micro:** bytes allocated reading all classes | 147.1 → 111.7 MB | **-24%** | 347.1 → 269.0 MB | **-23%** |
+| **micro:** predicted inflater input buffers | 59.8 → 24.1 MB | -60% | 139.9 → 53.9 MB | -61% |
+| **jfr:** `ZipInflaterInputStream.<init>` | 25.7 → 10.4 MB | **-60%** | 41.0 → 17.5 MB | **-57%** |
+| **jfr:** stacks in `org.springframework.boot.loader` | 183.0 → 167.6 MB | -8% | 302.3 → 274.9 MB | -9% |
+| **jfr:** total sampled | 244.6 → 229.8 MB | -6% | 386.8 → 360.2 MB | -7% |
+| **jfr:** young GCs | 7 → 7 | same | 11 → 11 | same |
+| **startup:** median (10 runs, no JFR) | 1618 → 1637 ms | same | 2621 → 2613 ms | same |
+
+
+
+The saving in MB grows with the number of classes loaded, while the percentage stays roughly
+constant. Startup time and GC count don't change measurably at this heap size.
+
+### Small app (`pom.xml`, `./run-all.sh <clone>`: jdbc, security, webmvc, actuator, h2)
 
 55 nested jars, 16,052 deflated class entries (60.6 MB uncompressed / 24.1 MB compressed),
 ~9,700 classes loaded at startup. Raw output: `results/20261109-114710`.
