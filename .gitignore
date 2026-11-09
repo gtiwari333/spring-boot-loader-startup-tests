@@ -1,0 +1,6 @@
+work/
+results/
+sample-app/target/
+*.jfr
+.DS_Store
+.idea/
